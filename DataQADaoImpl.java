@@ -3,14 +3,11 @@ package com.tridel.tems_data_service.dao;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.tridel.tems_data_service.model.request.EditQCRequest;
-import com.tridel.tems_data_service.model.request.QCDataEdit;
-import com.tridel.tems_data_service.model.request.ReportRequest;
-import com.tridel.tems_data_service.model.request.SensorParamViewReq;
+import com.tridel.tems_data_service.model.request.*;
 import com.tridel.tems_data_service.service.CommonService;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.NoResultException;
-import jakarta.persistence.Tuple;
+import io.micrometer.common.util.StringUtils;
+import jakarta.persistence.*;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -25,6 +22,8 @@ import java.util.stream.Collectors;
 @Repository
 @Slf4j
 public class DataQADaoImpl implements DataQADao{
+    @PersistenceContext
+    private EntityManager em;
     CommonService commonService;
     EntityManager entityManager;
     DataQADaoImpl(CommonService commonService, EntityManager entityManager){
@@ -81,7 +80,6 @@ public class DataQADaoImpl implements DataQADao{
         StringBuilder setSql = new StringBuilder();
         Map<String,Object> params = new HashMap<>();
 
-        /* build SET list from the incoming edits */
         byParam.values().forEach(e -> {
             if (e.getNewValue() != null) {
                 setSql.append(e.getParamCode())
@@ -96,13 +94,10 @@ public class DataQADaoImpl implements DataQADao{
             }
         });
 
-        /* nothing to change? → quick exit */
         if (setSql.isEmpty()) return "{\"status\":\"NO_CHANGE\"}";
 
-        /* ⚠️  remove the trailing comma + space */
         setSql.setLength(setSql.length() - 2);
 
-        /* ---------- build and run SQL ---------- */
         String sql = "UPDATE " + req.getSensorTableCode() +
                 " SET " + setSql +
                 " WHERE station_id = :stationId" +
@@ -118,4 +113,29 @@ public class DataQADaoImpl implements DataQADao{
         return "{\"rowsUpdated\":" + rows + "}";
     }
 
+    @Override
+    @Transactional
+    public int deleteQCData(DeleteQCRequest req) {
+
+        StringBuilder sql = new StringBuilder()
+                .append("UPDATE ")
+                .append(req.getSensorTableCode())
+                .append(" SET is_data_removed = 1, qaqc_check = 2")
+                .append(" WHERE station_id = :stationId")
+                .append("   AND parameter_datetime = :dt");
+
+        Query q = em.createNativeQuery(sql.toString())
+                .setParameter("stationId", req.getStationId())
+                .setParameter("dt",        req.getParameterDateTime());
+
+        int rows = q.executeUpdate();
+
+        log.info("User={} deleted QC row (table={}, station={}, dt={}) -> {} rows",
+                req.getLoggedIn(), req.getSensorTableCode(),
+                req.getStationId(), req.getParameterDateTime(), rows);
+
+        return rows;
+    }
 }
+
+
