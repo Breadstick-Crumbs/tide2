@@ -1,6 +1,7 @@
 package com.tridel.tems_data_service.controller;
 
 
+import com.tridel.tems_data_service.model.request.DeleteQCRequest;
 import com.tridel.tems_data_service.model.request.EditQCRequest;
 import com.tridel.tems_data_service.model.request.ReportRequest;
 import com.tridel.tems_data_service.service.DataQAService;
@@ -33,6 +34,13 @@ public class DataQAController {
         return ResponseEntity
                 .ok()
                 .body(dataQAService.editQCData(req));
+    }
+
+    @PostMapping("/deleteQCData")
+    public ResponseEntity<String> deleteQCData(@RequestBody DeleteQCRequest req) {
+        return ResponseEntity
+                .ok()
+                .body(dataQAService.deleteQCData(req));
     }
 
 
